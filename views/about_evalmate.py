@@ -57,7 +57,7 @@ def show_contact_form():
 # Main Page Layout
 st.markdown('<div class="main-container">', unsafe_allow_html=True)
 st.markdown('<div class="left-content">', unsafe_allow_html=True)
-st.image("/images/FINAL LOGO.png")
+st.image("images/FINAL LOGO.png")
 st.markdown('</div>', unsafe_allow_html=True)
 st.markdown('<div class="right-content">', unsafe_allow_html=True)
 st.markdown('<p class="title-text">EvalMate</p>', unsafe_allow_html=True)

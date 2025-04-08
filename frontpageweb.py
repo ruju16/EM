@@ -16,4 +16,4 @@ pg = st.navigation(pages=[about_page,project_1_page])
 pg.run()
 
 # Shared on all pages
-st.logo("/images/FINAL LOGO.png")
+st.logo("images/FINAL LOGO.png")
