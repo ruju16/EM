@@ -6,7 +6,10 @@ from datetime import datetime
 from views.LM import LLM
 from gcvutils.textextract_gcv import extract_handwritten_text_from_pdf
 from datetime import datetime, time, timedelta
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from gcvutils.matheqs import process_pdf_to_text_and_latex
+
 # File paths for persistent storage
 ASSIGNMENTS_FILE = "assignments.json"
 NOTIFICATIONS_FILE = "notifications.json"
