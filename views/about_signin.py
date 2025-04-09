@@ -51,7 +51,6 @@ def teacher_dashboard():
     if st.button("Logout"):
         logout()
 
-    # Add New Assignment
     st.markdown("## 📝 Add New Assignment")
     with st.container():
         col1, col2 = st.columns(2)
@@ -82,7 +81,6 @@ def teacher_dashboard():
                 TIME.sleep(2)
                 st.rerun()
 
-    # Categorization
     pending_grading, finalized_submissions, no_submissions, all_assignments = [], [], [], []
 
     for assignment in st.session_state.assignments:
@@ -93,15 +91,16 @@ def teacher_dashboard():
         if total_subs == 0:
             no_submissions.append(assignment)
         else:
-            all_graded = all(assignment["graded_students"].get(user, {}).get("finalized", False)
-                             for user in assignment["extracted_texts"])
-            if all_graded:
-                finalized_submissions.append(assignment)
-            else:
+            any_ungraded = any(
+                not assignment["graded_students"].get(user, {}).get("finalized", False)
+                for user in assignment["extracted_texts"]
+            )
+            if any_ungraded:
                 pending_grading.append(assignment)
+            else:
+                finalized_submissions.append(assignment)
         all_assignments.append(assignment)
 
-    # Subject Filter
     st.markdown("## 📂 Filter Assignments by Subject")
     all_subjects = ["All"] + sorted(set(a.get("subject", "Unspecified") for a in st.session_state.assignments))
     selected_subject = st.selectbox("📚 Select Subject", all_subjects)
@@ -116,7 +115,6 @@ def teacher_dashboard():
 
     tabs = st.tabs(["🟡 Pending Grading", "✅ Finalized Submissions", "📭 No Submissions", "📄 All Assignments"])
 
-    # TAB 1: Pending Grading
     with tabs[0]:
         if not pending_grading:
             st.info("🎉 No assignments pending grading.")
@@ -177,7 +175,6 @@ def teacher_dashboard():
                                 TIME.sleep(2)
                                 st.rerun()
 
-    # TAB 2: Finalized Submissions
     with tabs[1]:
         if not finalized_submissions:
             st.info("📭 No finalized submissions.")
@@ -190,7 +187,6 @@ def teacher_dashboard():
                         st.text_area("Feedback", value=data["feedback"], height=100, disabled=True,
                                      key=f"final_{assignment['title']}_{username}")
 
-    # TAB 3: No Submissions
     with tabs[2]:
         if not no_submissions:
             st.success("🎉 All assignments have submissions.")
@@ -201,7 +197,6 @@ def teacher_dashboard():
                 st.text_area("Model Answer", value=assignment["model_answer"], height=100, disabled=True,
                              key=f"no_model_{assignment['title']}")
 
-    # TAB 4: All Assignments
     with tabs[3]:
         if not all_assignments:
             st.info("No assignments created yet.")
@@ -220,7 +215,7 @@ def teacher_dashboard():
                         st.session_state.assignments.remove(assignment)
                         save_data(ASSIGNMENTS_FILE, st.session_state.assignments)
                         st.rerun()
-
+                        
 def save_submission_data():
     with open("submissions.json", "w") as f:
         json.dump(st.session_state.submissions, f)
