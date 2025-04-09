@@ -296,7 +296,11 @@ def student_dashboard():
             continue
 
         title = assignment["title"]
+        if 'submissions' not in st.session_state:
+            st.session_state.submissions = {}  # or {} or defaultdict(list), if needed
+
         submissions = st.session_state.submissions.get(username, [])
+
         is_submitted = title in submissions
         feedback_file_path = os.path.join(FEEDBACKS_FOLDER, title, f"{username}_feedback.txt")
         is_graded = os.path.exists(feedback_file_path)
