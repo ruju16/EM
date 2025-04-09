@@ -51,6 +51,7 @@ def teacher_dashboard():
     if st.button("Logout"):
         logout()
 
+    # Add New Assignment
     st.markdown("## 📝 Add New Assignment")
     with st.container():
         col1, col2 = st.columns(2)
@@ -60,7 +61,7 @@ def teacher_dashboard():
         with col2:
             due_date = st.date_input("📅 Due Date")
             time_choice = st.selectbox("⏰ Select Due Time", ["🕛 12:00 PM", "🌙 11:59 PM"])
-            due_time = time(12, 0) if time_choice == "🕛 12:00 PM" else time(23, 59)
+            due_time = time_obj(12, 0) if time_choice == "🕛 12:00 PM" else time_obj(23, 59)
 
         model_answer = st.text_area("🧠 Model Answer", placeholder="Write the model answer here...", height=120)
         if st.button("➕ Add Assignment"):
@@ -78,9 +79,10 @@ def teacher_dashboard():
                 st.session_state.assignments.append(new_assignment)
                 save_data(ASSIGNMENTS_FILE, st.session_state.assignments)
                 st.success(f"✅ Assignment '{assignment_title}' added successfully!")
-                TIME.sleep(2)
+                time.sleep(2)  # ✅ Fixed
                 st.rerun()
 
+    # Categorization
     pending_grading, finalized_submissions, no_submissions, all_assignments = [], [], [], []
 
     for assignment in st.session_state.assignments:
@@ -91,16 +93,15 @@ def teacher_dashboard():
         if total_subs == 0:
             no_submissions.append(assignment)
         else:
-            any_ungraded = any(
-                not assignment["graded_students"].get(user, {}).get("finalized", False)
-                for user in assignment["extracted_texts"]
-            )
-            if any_ungraded:
-                pending_grading.append(assignment)
-            else:
+            all_graded = all(assignment["graded_students"].get(user, {}).get("finalized", False)
+                             for user in assignment["extracted_texts"])
+            if all_graded:
                 finalized_submissions.append(assignment)
+            else:
+                pending_grading.append(assignment)
         all_assignments.append(assignment)
 
+    # Subject Filter
     st.markdown("## 📂 Filter Assignments by Subject")
     all_subjects = ["All"] + sorted(set(a.get("subject", "Unspecified") for a in st.session_state.assignments))
     selected_subject = st.selectbox("📚 Select Subject", all_subjects)
@@ -108,6 +109,118 @@ def teacher_dashboard():
     def filter_by_subject(assignments):
         return assignments if selected_subject == "All" else [a for a in assignments if a.get("subject") == selected_subject]
 
+    pending_grading = filter_by_subject(pending_grading)
+    finalized_submissions = filter_by_subject(finalized_submissions)
+    no_submissions = filter_by_subject(no_submissions)
+    all_assignments = filter_by_subject(all_assignments)
+
+    tabs = st.tabs(["🟡 Pending Grading", "✅ Finalized Submissions", "📭 No Submissions", "📄 All Assignments"])
+
+    # TAB 1: Pending Grading
+    with tabs[0]:
+        if not pending_grading:
+            st.info("🎉 No assignments pending grading.")
+        else:
+            for assignment in pending_grading:
+                st.subheader(f"🟡 {assignment['title']} ({assignment.get('subject', 'N/A')})")
+                for username, extracted_text in assignment["extracted_texts"].items():
+                    if assignment["graded_students"].get(username, {}).get("finalized", False):
+                        continue
+
+                    student_file = os.path.join("extracted_texts", assignment["title"].replace(" ", "_"), f"{username}_extractedtext.txt")
+                    if not os.path.exists(student_file):
+                        continue
+
+                    with open(student_file, "r") as f:
+                        content = f.read()
+
+                    with st.expander(f"📄 Submission from {username}"):
+                        st.text_area("Extracted Answer", value=content, height=150, disabled=True,
+                                     key=f"extracted_{assignment['title']}_{username}")
+                        instructions = st.text_area("Optional Grading Instructions",
+                                                    key=f"instructions_{assignment['title']}_{username}")
+
+                        if st.button(f"⚙️ Generate Feedback", key=f"generate_{assignment['title']}_{username}"):
+                            if not assignment["model_answer"]:
+                                st.error("❌ Model answer is required.")
+                            else:
+                                llm = LLM()
+                                feedback = llm.AI(
+                                    student_answer=content,
+                                    model_answer=assignment["model_answer"],
+                                    additional_instructions=instructions
+                                )
+                                st.session_state[f"feedback_{assignment['title']}_{username}"] = feedback
+                                st.rerun()
+
+                        feedback_key = f"feedback_{assignment['title']}_{username}"
+                        if feedback_key in st.session_state:
+                            st.markdown("### ✍️ Review & Edit Feedback Before Sending")
+                            edited = st.text_area("Edit Feedback",
+                                                  value=st.session_state[feedback_key],
+                                                  height=200,
+                                                  key=f"edit_{assignment['title']}_{username}")
+
+                            if st.button("✅ Finalize & Send Feedback", key=f"finalize_{assignment['title']}_{username}"):
+                                assignment["graded_students"][username] = {
+                                    "feedback": edited,
+                                    "finalized": True
+                                }
+
+                                feedback_folder = os.path.join(FEEDBACKS_FOLDER, assignment["title"])
+                                os.makedirs(feedback_folder, exist_ok=True)
+                                with open(os.path.join(feedback_folder, f"{username}_feedback.txt"), "w") as f:
+                                    f.write(edited)
+
+                                save_data(ASSIGNMENTS_FILE, st.session_state.assignments)
+                                st.success(f"✅ Feedback sent to {username}!")
+                                time.sleep(2)  # ✅ Fixed
+                                st.rerun()
+
+    # TAB 2: Finalized Submissions
+    with tabs[1]:
+        if not finalized_submissions:
+            st.info("📭 No finalized submissions.")
+        else:
+            for assignment in finalized_submissions:
+                st.subheader(f"✅ {assignment['title']} ({assignment.get('subject', 'N/A')})")
+                for username, data in assignment["graded_students"].items():
+                    if data.get("finalized"):
+                        st.markdown(f"**{username}** - Feedback Sent")
+                        st.text_area("Feedback", value=data["feedback"], height=100, disabled=True,
+                                     key=f"final_{assignment['title']}_{username}")
+
+    # TAB 3: No Submissions
+    with tabs[2]:
+        if not no_submissions:
+            st.success("🎉 All assignments have submissions.")
+        else:
+            for assignment in no_submissions:
+                st.subheader(f"📭 {assignment['title']} ({assignment.get('subject', 'N/A')})")
+                st.write(f"📅 Deadline: {assignment['submission_deadline']}")
+                st.text_area("Model Answer", value=assignment["model_answer"], height=100, disabled=True,
+                             key=f"no_model_{assignment['title']}")
+
+    # TAB 4: All Assignments
+    with tabs[3]:
+        if not all_assignments:
+            st.info("No assignments created yet.")
+        else:
+            for assignment in all_assignments:
+                st.subheader(f"📄 {assignment['title']} ({assignment.get('subject', 'N/A')})")
+                col1, col2, col3 = st.columns([3, 3, 1])
+                with col1:
+                    st.write(f"📅 Deadline: {assignment['submission_deadline']}")
+                    st.write(f"📥 Submissions: {len(assignment['extracted_texts'])}")
+                with col2:
+                    st.text_area("Model Answer", value=assignment["model_answer"], height=100, disabled=True,
+                                 key=f"view_model_{assignment['title']}")
+                with col3:
+                    if st.button("🗑️ Delete", key=f"delete_{assignment['title']}"):
+                        st.session_state.assignments.remove(assignment)
+                        save_data(ASSIGNMENTS_FILE, st.session_state.assignments)
+                        st.rerun()
+                        
     pending_grading = filter_by_subject(pending_grading)
     finalized_submissions = filter_by_subject(finalized_submissions)
     no_submissions = filter_by_subject(no_submissions)
