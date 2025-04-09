@@ -10,19 +10,6 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from gcvutils.matheqs import process_pdf_to_text_and_latex
 
-if 'submissions' not in st.session_state:
-    st.session_state.submissions = {}
-
-if 'username' not in st.session_state:
-    st.session_state.username = None 
-
-username = st.session_state.username 
-
-if username is not None:
-    submissions = st.session_state.submissions.get(username, [])
-else:
-    submissions = []
-
 # File paths for persistent storage
 ASSIGNMENTS_FILE = "assignments.json"
 NOTIFICATIONS_FILE = "notifications.json"
