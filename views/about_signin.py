@@ -285,6 +285,9 @@ def student_dashboard():
 
     upcoming_shown = past_due_shown = graded_shown = pending_grading_shown = False
 
+    if 'submissions' not in st.session_state or st.session_state.submissions is None:
+        st.session_state.submissions = {}
+
     for idx, assignment in enumerate(st.session_state.assignments):
         subject = assignment.get("subject", "Unknown Subject")
         if selected_subject != "All" and subject != selected_subject:
