@@ -15,7 +15,14 @@ if 'submissions' not in st.session_state:
 
 if 'username' not in st.session_state:
     st.session_state.username = None 
-    
+
+username = st.session_state.username 
+
+if username is not None:
+    submissions = st.session_state.submissions.get(username, [])
+else:
+    submissions = []
+
 # File paths for persistent storage
 ASSIGNMENTS_FILE = "assignments.json"
 NOTIFICATIONS_FILE = "notifications.json"
