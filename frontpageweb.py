@@ -1,4 +1,6 @@
 import streamlit as st
+import os
+os.system("pip uninstall -y opencv-python opencv-python-headless && pip install opencv-python-headless==4.8.1.78")
 
 about_page = st.Page(
     page = "views/about_evalmate.py",
