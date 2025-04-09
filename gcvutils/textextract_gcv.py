@@ -1,7 +1,7 @@
 from google.cloud import vision
 from google.oauth2 import service_account
-from pdf2image import convert_from_bytes
 import io
+import fitz  
 import streamlit as st
 
 # Set up credentials using secrets
@@ -13,39 +13,32 @@ def extract_handwritten_text_from_pdf(pdf_path, output_file):
     """
     Extract handwritten text from a PDF using Google Cloud Vision.
     """
-    # Read the PDF as bytes
-    with open(pdf_path, "rb") as f:
-        pdf_bytes = f.read()
-
-    # Convert PDF to images (no Poppler path needed)
-    images = convert_from_bytes(pdf_bytes)
-
+    # Load PDF using PyMuPDF
+    doc = fitz.open(pdf_path)
     client = vision.ImageAnnotatorClient(credentials=creds)
-    
-    # Show progress bar
-    total_pages = len(images)
+
+    total_pages = len(doc)
     progress_bar = st.progress(0)
 
-    for i, image in enumerate(images):
+    for i, page in enumerate(doc):
         progress = int((i / total_pages) * 100)
         progress_bar.progress(progress)
-        
+
         print(f"Processing page {i + 1}...")
 
-        # Convert image to byte array
-        image_byte_arr = io.BytesIO()
-        image.save(image_byte_arr, format='PNG')
-        image_byte_arr = image_byte_arr.getvalue()
+        # Render page to PNG bytes
+        pix = page.get_pixmap(dpi=300)
+        image_byte_arr = pix.tobytes("png")
 
-        # Use Google Vision API
+        # Send to Vision API
         gcv_image = vision.Image(content=image_byte_arr)
         response = client.document_text_detection(image=gcv_image)
         annotations = response.full_text_annotation
 
         if annotations:
             progress_bar.progress(100)
-            print(f"Extracted text from page {i + 1}:")
             text = annotations.text
+            print(f"Extracted text from page {i + 1}:")
             print(text)
             save_extracted_text_to_file(text, output_file)
         else:
