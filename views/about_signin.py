@@ -19,11 +19,18 @@ FEEDBACKS_FOLDER = "feedbacks"
 SECRETS_FILE = ".streamlit/secrets.toml"
 
 def load_data(file_path, default=None):
-    """Load data from a JSON file with a default return value."""
-    if os.path.exists(file_path):
-        with open(file_path, "r") as file:
-            return json.load(file)
-    return default if default is not None else []
+    """Load data from a JSON file, creating it with default if it doesn't exist."""
+    # Ensure the directory exists
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
+    # If the file doesn't exist, create it with default content
+    if not os.path.exists(file_path):
+        with open(file_path, "w") as file:
+            json.dump(default if default is not None else {}, file)
+
+    # Read and return the data
+    with open(file_path, "r") as file:
+        return json.load(file)
 
 def save_data(file_path, data):
     """Save data to a JSON file."""
@@ -233,21 +240,15 @@ def student_dashboard():
         st.error("You are not logged in. Please log in first.")
         return
 
-    # Load data
-    st.session_state.assignments = load_data(ASSIGNMENTS_FILE)
-    st.session_state.submissions = load_data(SUBMISSIONS_FILE)
-
-    if "submissions" not in st.session_state:
-        st.session_state.submissions = {}
+    # Load data safely with defaults
+    st.session_state.assignments = load_data(ASSIGNMENTS_FILE, default=[])
+    st.session_state.submissions = load_data(SUBMISSIONS_FILE, default={})
 
     st.subheader("🔔 Notifications")
-    current_user = st.session_state["username"]
-    current_date = datetime.now().date()
-
+    current_user = username
     today_notifications = []
 
     for assignment in st.session_state.assignments:
-        # Check if deadline is today
         try:
             deadline = datetime.strptime(assignment['submission_deadline'], "%Y-%m-%d %H:%M:%S").date()
         except ValueError:
@@ -259,7 +260,6 @@ def student_dashboard():
             msg = f"❗ You missed the deadline for '{assignment['title']}' today!"
             today_notifications.append(msg)
 
-        # Check if feedback was added today
         feedback_file_path = os.path.join(FEEDBACKS_FOLDER, assignment["title"], f"{current_user}_feedback.txt")
         if os.path.exists(feedback_file_path):
             feedback_mod_time = datetime.fromtimestamp(os.path.getmtime(feedback_file_path)).date()
@@ -267,31 +267,26 @@ def student_dashboard():
                 msg = f"✅ Your assignment '{assignment['title']}' was graded today!"
                 today_notifications.append(msg)
 
-    # Display only today's notifications
     if today_notifications:
         st.write("📅 **Today's Notifications:**")
         for msg in today_notifications:
             st.write(f"- {msg}")
     else:
         st.write("📭 No new notifications for today.")
-    # 📂 Filter by Subject
+
     st.subheader("🧠 Filter Assignments by Subject")
     all_subjects = list({a.get("subject", "Unknown Subject") for a in st.session_state.assignments})
     selected_subject = st.selectbox("Select Subject", ["All"] + sorted(all_subjects))
 
-    # 📝 Assignments Section
     st.subheader("📝 Assignments")
     tabs = st.tabs(["📅 Upcoming", "❌ Past Due", "✅ Graded", "📨 Submitted (Pending Grading)"])
 
     upcoming_shown = past_due_shown = graded_shown = pending_grading_shown = False
 
-    if 'submissions' not in st.session_state or st.session_state.submissions is None:
-        st.session_state.submissions = {}
-
     for idx, assignment in enumerate(st.session_state.assignments):
         subject = assignment.get("subject", "Unknown Subject")
         if selected_subject != "All" and subject != selected_subject:
-            continue  # Skip if not matching selected subject
+            continue
 
         try:
             deadline = datetime.strptime(assignment['submission_deadline'], "%Y-%m-%d %H:%M:%S").date()
@@ -299,7 +294,6 @@ def student_dashboard():
             continue
 
         title = assignment["title"]
-
         submissions = st.session_state.submissions.get(username, [])
 
         is_submitted = title in submissions
@@ -334,7 +328,6 @@ def student_dashboard():
                             os.makedirs(assignment_folder, exist_ok=True)
                             extracted_text_path = os.path.join(assignment_folder, f"{username}_extractedtext.txt")
 
-                            # 📘 Use different extraction based on subject
                             if subject.lower() == "maths":
                                 process_pdf_to_text_and_latex(pdf_path, extracted_text_path)
                             else:
@@ -355,14 +348,12 @@ def student_dashboard():
                         except Exception as e:
                             st.error(f"❌ Error during text extraction: {e}")
 
-        # ❌ Past Due
         elif current_date > deadline and not is_submitted:
             with tabs[1]:
                 past_due_shown = True
                 st.write(f"**{title}** *(Subject: {subject})* — Deadline: {assignment['submission_deadline']}")
                 st.warning("⏳ Submission deadline has passed. You cannot upload files for this assignment.")
 
-        # ✅ Graded
         elif is_submitted and is_graded:
             with tabs[2]:
                 graded_shown = True
@@ -370,13 +361,11 @@ def student_dashboard():
                     feedback = f.read()
                 st.success(f"📘 **{title}** *(Subject: {subject})* - Feedback: {feedback}")
 
-        # 📨 Submitted, not graded
         elif is_submitted and not is_graded:
             with tabs[3]:
                 pending_grading_shown = True
                 st.info(f"📄 **{title}** *(Subject: {subject})* - Submitted, waiting for grading.")
 
-    # Empty tabs fallback messages
     with tabs[0]:
         if not upcoming_shown:
             st.success("🎉 Yay! No pending assignments!")
