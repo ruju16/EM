@@ -10,6 +10,12 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from gcvutils.matheqs import process_pdf_to_text_and_latex
 
+if 'submissions' not in st.session_state:
+    st.session_state.submissions = {}
+
+if 'username' not in st.session_state:
+    st.session_state.username = None 
+    
 # File paths for persistent storage
 ASSIGNMENTS_FILE = "assignments.json"
 NOTIFICATIONS_FILE = "notifications.json"
@@ -296,8 +302,6 @@ def student_dashboard():
             continue
 
         title = assignment["title"]
-        if 'submissions' not in st.session_state:
-            st.session_state.submissions = {}  # or {} or defaultdict(list), if needed
 
         submissions = st.session_state.submissions.get(username, [])
 
