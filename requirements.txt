@@ -10,7 +10,7 @@ numpy
 pandas
 matplotlib
 tqdm
-opencv-python
+opencv-python-headless==4.8.1.78
 torch
 torchvision
 scikit-learn
