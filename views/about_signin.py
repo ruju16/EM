@@ -4,9 +4,9 @@ import os
 import time as TIME
 from datetime import datetime
 from views.LM import LLM
-from google.textextract_gcv import extract_handwritten_text_from_pdf
+from gcvutils.textextract_gcv import extract_handwritten_text_from_pdf
 from datetime import datetime, time, timedelta
-from google.matheqs import process_pdf_to_text_and_latex
+from gcvutils.matheqs import process_pdf_to_text_and_latex
 # File paths for persistent storage
 ASSIGNMENTS_FILE = "assignments.json"
 NOTIFICATIONS_FILE = "notifications.json"
