@@ -361,10 +361,13 @@ def student_dashboard():
                 graded_shown = True
 
                 try:
-                    feedback_file.reload()  # Ensure latest metadata and content
-                    feedback = feedback_file.download_as_text()
-                    st.success(f"📘 **{title}** *(Subject: {subject})* - Feedback:")
-                    st.text_area("Feedback", value=feedback, height=150, disabled=True, key=f"{title}_{username}_feedback_display")
+                    if feedback_file.exists():
+                        feedback_file.reload()  # Ensure latest metadata and content
+                        feedback = feedback_file.download_as_text()
+                        st.success(f"📘 **{title}** *(Subject: {subject})* - Feedback:")
+                        st.text_area("Feedback", value=feedback, height=150, disabled=True, key=f"{title}_{username}_feedback_display")
+                    else:
+                        st.warning("⚠️ Feedback file does not exist in GCS.")
                 except Exception as e:
                     st.error(f"⚠️ Unable to load feedback: {e}")
 
