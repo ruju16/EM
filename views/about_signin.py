@@ -10,7 +10,7 @@ from google.cloud import storage
 from google.oauth2 import service_account
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from gcvutils.matheqs import process_pdf_to_text_and_latex
+from gcvutils.matheqs import process_pdf_from_gcs_to_text
 
 # File paths for persistent storage
 ASSIGNMENTS_FILE = "assignments/assignments.json"
@@ -328,8 +328,8 @@ def student_dashboard():
                         try:
                             # Step 2: Process from GCS and return blob path
                             if subject.lower() == "maths":
-                                from gcvutils.matheqs import process_pdf_to_text_and_latex, upload_extracted_text_to_gcs
-                                extracted_text = process_pdf_to_text_and_latex(pdf_blob_path)
+                                from gcvutils.matheqs import process_pdf_from_gcs_to_text, upload_extracted_text_to_gcs
+                                extracted_text = process_pdf_from_gcs_to_text(pdf_blob_path)
                                 extracted_blob_path = upload_extracted_text_to_gcs(extracted_text, title, username)
                             else:
                                 from gcvutils.textextract_gcv import extract_handwritten_text_from_pdf
