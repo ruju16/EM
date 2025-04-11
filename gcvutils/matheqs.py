@@ -6,6 +6,7 @@ from pix2tex.cli import LatexOCR
 from google.cloud import storage
 from google.oauth2 import service_account
 import streamlit as st
+import os
 
 # Setup GCS access
 credentials = service_account.Credentials.from_service_account_info(st.secrets["google_credentials"])
@@ -13,16 +14,43 @@ bucket_name = st.secrets["gcs"]["bucket_name"]
 client = storage.Client(credentials=credentials)
 bucket = client.bucket(bucket_name)
 
+# Persistent directory for models
+PIX2TEXT_MODEL_DIR = os.path.expanduser("model/pix2text/breezedeus-Pix2Text")
+LATEXOCR_MODEL_PATH = os.path.expanduser("~/.streamlit/latexocr/weights.pth")
+
+def ensure_pix2text_model():
+    expected_files = ["config.json", "model.safetensors"]  # Adjust as per model contents
+    missing_files = [f for f in expected_files if not os.path.exists(os.path.join(PIX2TEXT_MODEL_DIR, f))]
+    if missing_files:
+        st.info("📦 Downloading Pix2Text model files from GCS...")
+        for blob in bucket.list_blobs(prefix="models/pix2text/breezedeus-Pix2Text/"):
+            rel_path = blob.name.replace("models/pix2text/breezedeus-Pix2Text/", "")
+            if rel_path:
+                local_path = os.path.join(PIX2TEXT_MODEL_DIR, rel_path)
+                os.makedirs(os.path.dirname(local_path), exist_ok=True)
+                blob.download_to_filename(local_path)
+        st.success("✅ Pix2Text model files downloaded.")
+
+def ensure_latexocr_model():
+    if not os.path.exists(LATEXOCR_MODEL_PATH):
+        st.info("📦 Downloading LatexOCR weights from GCS...")
+        latexocr_blob = bucket.blob("models/latexocr/weights.pth")
+        os.makedirs(os.path.dirname(LATEXOCR_MODEL_PATH), exist_ok=True)
+        latexocr_blob.download_to_filename(LATEXOCR_MODEL_PATH)
+        st.success("✅ LatexOCR weights downloaded.")
+
 def init_models():
     try:
-        p2t = Pix2Text(use_fast=True)
+        ensure_pix2text_model()
+        p2t = Pix2Text(model_dir=PIX2TEXT_MODEL_DIR, use_fast=True)
         st.success("✅ Pix2Text model loaded successfully.")
     except Exception as e:
         st.error(f"❌ Pix2Text failed to load: {e}")
         p2t = None
 
     try:
-        latexocr = LatexOCR()
+        ensure_latexocr_model()
+        latexocr = LatexOCR(weights_path=LATEXOCR_MODEL_PATH)
         st.success("✅ LatexOCR model loaded successfully.")
     except Exception as e:
         st.error(f"❌ LatexOCR failed to load: {e}")
@@ -35,7 +63,6 @@ def clean_latex_string(latex):
 
 def extract_text_and_latex(image, p2t_model, latexocr_model):
     full_text = ""
-
     try:
         extracted = p2t_model.recognize(image)
         st.write("🔍 Raw Pix2Text Output:", extracted)
@@ -93,7 +120,6 @@ def process_pdf_from_gcs_to_text(pdf_blob_path):
     try:
         pdf_bytes = download_pdf_from_gcs(pdf_blob_path)
         st.info(f"📥 PDF downloaded from GCS: {len(pdf_bytes)} bytes")
-
         images = convert_pdf_bytes_to_images(pdf_bytes)
         st.success(f"🖼️ {len(images)} page(s) converted to images.")
 
