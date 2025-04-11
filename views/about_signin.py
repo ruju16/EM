@@ -61,7 +61,7 @@ def teacher_dashboard():
         with col2:
             due_date = st.date_input("📅 Due Date")
             time_choice = st.selectbox("⏰ Select Due Time", ["🕛 12:00 PM", "🌙 11:59 PM"])
-            due_time = time_obj(12, 0) if time_choice == "🕛 12:00 PM" else time_obj(23, 59)
+            due_time = time(12, 0) if time_choice == "🕛 12:00 PM" else time(23, 59)
 
         model_answer = st.text_area("🧠 Model Answer", placeholder="Write the model answer here...", height=120)
         if st.button("➕ Add Assignment"):
