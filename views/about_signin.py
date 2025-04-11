@@ -362,9 +362,10 @@ def student_dashboard():
 
                 try:
                     if feedback_file.exists():
-                        feedback_file.reload()  # Ensure latest metadata and content
+                        feedback_file.reload()  # ✅ Ensures metadata like `.updated` is available
+                        mod_time = feedback_file.updated.date()
                         feedback = feedback_file.download_as_text()
-                        st.success(f"📘 **{title}** *(Subject: {subject})* - Feedback:")
+                        st.success(f"📘 **{title}** *(Subject: {subject})* - Feedback (Last Updated: {mod_time}):")
                         st.text_area("Feedback", value=feedback, height=150, disabled=True, key=f"{title}_{username}_feedback_display")
                     else:
                         st.warning("⚠️ Feedback file does not exist in GCS.")
