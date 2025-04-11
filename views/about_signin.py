@@ -359,8 +359,14 @@ def student_dashboard():
         elif is_submitted and is_graded:
             with tabs[2]:
                 graded_shown = True
-                feedback = feedback_file.download_as_text()
-                st.success(f"📘 **{title}** *(Subject: {subject})* - Feedback: {feedback}")
+
+                try:
+                    feedback_file.reload()  # Ensure latest metadata and content
+                    feedback = feedback_file.download_as_text()
+                    st.success(f"📘 **{title}** *(Subject: {subject})* - Feedback:")
+                    st.text_area("Feedback", value=feedback, height=150, disabled=True, key=f"{title}_{username}_feedback_display")
+                except Exception as e:
+                    st.error(f"⚠️ Unable to load feedback: {e}")
 
         elif is_submitted and not is_graded:
             with tabs[3]:
