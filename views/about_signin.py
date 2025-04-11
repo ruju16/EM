@@ -79,7 +79,7 @@ def teacher_dashboard():
                 st.session_state.assignments.append(new_assignment)
                 save_data(ASSIGNMENTS_FILE, st.session_state.assignments)
                 st.success(f"✅ Assignment '{assignment_title}' added successfully!")
-                time.sleep(2)  # ✅ Fixed
+                TIME.sleep(2)  # ✅ Fixed
                 st.rerun()
 
     # Categorization
@@ -174,7 +174,7 @@ def teacher_dashboard():
 
                                 save_data(ASSIGNMENTS_FILE, st.session_state.assignments)
                                 st.success(f"✅ Feedback sent to {username}!")
-                                time.sleep(2)  # ✅ Fixed
+                                TIME.sleep(2)  # ✅ Fixed
                                 st.rerun()
 
     # TAB 2: Finalized Submissions
