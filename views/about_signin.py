@@ -271,6 +271,7 @@ def student_dashboard():
         feedback_blob = f"{FEEDBACKS_FOLDER}/{title}/{username}_feedback.txt"
         feedback_file = bucket.blob(feedback_blob)
         if feedback_file.exists():
+            feedback_file.reload()
             mod_time = feedback_file.updated.date()
             if mod_time == current_date:
                 today_notifications.append(f"✅ Your assignment '{title}' was graded today!")
