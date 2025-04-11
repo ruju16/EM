@@ -134,8 +134,8 @@ def teacher_dashboard():
                     blob_path = extracted_text_path.replace("\\", "/").replace("./", "")
                     try:
                         content = bucket.blob(blob_path).download_as_text()
-                    except:
-                        st.warning(f"⚠️ Could not load submission for {username}.")
+                    except Exception as e:
+                        st.warning(f"⚠️ Could not load submission for {username}: {e}")
                         continue
 
                     with st.expander(f"📄 Submission from {username}"):
@@ -179,6 +179,50 @@ def teacher_dashboard():
                                 TIME.sleep(2)
                                 st.rerun()
 
+    # TAB 2: Finalized Submissions
+    with tabs[1]:
+        if not finalized_submissions:
+            st.info("📭 No finalized submissions.")
+        else:
+            for assignment in finalized_submissions:
+                st.subheader(f"✅ {assignment['title']} ({assignment.get('subject', 'N/A')})")
+                for username, data in assignment["graded_students"].items():
+                    if data.get("finalized"):
+                        st.markdown(f"**{username}** - Feedback Sent")
+                        st.text_area("Feedback", value=data["feedback"], height=100, disabled=True,
+                                     key=f"final_{assignment['title']}_{username}")
+
+    # TAB 3: No Submissions
+    with tabs[2]:
+        if not no_submissions:
+            st.success("🎉 All assignments have submissions.")
+        else:
+            for assignment in no_submissions:
+                st.subheader(f"📭 {assignment['title']} ({assignment.get('subject', 'N/A')})")
+                st.write(f"📅 Deadline: {assignment['submission_deadline']}")
+                st.text_area("Model Answer", value=assignment["model_answer"], height=100, disabled=True,
+                             key=f"no_model_{assignment['title']}")
+
+    # TAB 4: All Assignments
+    with tabs[3]:
+        if not all_assignments:
+            st.info("No assignments created yet.")
+        else:
+            for assignment in all_assignments:
+                st.subheader(f"📄 {assignment['title']} ({assignment.get('subject', 'N/A')})")
+                col1, col2, col3 = st.columns([3, 3, 1])
+                with col1:
+                    st.write(f"📅 Deadline: {assignment['submission_deadline']}")
+                    st.write(f"📥 Submissions: {len(assignment['extracted_texts'])}")
+                with col2:
+                    st.text_area("Model Answer", value=assignment["model_answer"], height=100, disabled=True,
+                                 key=f"view_model_{assignment['title']}")
+                with col3:
+                    if st.button("🗑️ Delete", key=f"delete_{assignment['title']}"):
+                        st.session_state.assignments.remove(assignment)
+                        save_data(ASSIGNMENTS_FILE, st.session_state.assignments)
+                        st.rerun()
+
 def student_dashboard():
     st.title("Student Dashboard")
     st.write("📚 View Assignments, Feedback, and Notifications")
@@ -194,7 +238,7 @@ def student_dashboard():
         st.error("You are not logged in. Please log in first.")
         return
 
-    # Load GCS data
+    # Load data from GCS
     st.session_state.assignments = load_data(ASSIGNMENTS_FILE, default=[])
     st.session_state.submissions = load_data(SUBMISSIONS_FILE, default={})
 
@@ -225,11 +269,10 @@ def student_dashboard():
         if deadline == current_date and not submission_exists:
             today_notifications.append(f"❗ You missed the deadline for '{title}' today!")
 
-        feedback_blob = f"{FEEDBACKS_FOLDER}/{title}/{username}_feedback.txt"
-        feedback_file = bucket.blob(feedback_blob)
-        if feedback_file.exists():
-            mod_time = feedback_file.updated.date()
-            if mod_time == current_date:
+        feedback_blob_path = f"{FEEDBACKS_FOLDER}/{title}/{username}_feedback.txt"
+        feedback_blob = bucket.blob(feedback_blob_path)
+        if feedback_blob.exists():
+            if feedback_blob.updated.date() == current_date:
                 today_notifications.append(f"✅ Your assignment '{title}' was graded today!")
 
     if today_notifications:
@@ -239,13 +282,14 @@ def student_dashboard():
     else:
         st.write("📭 No new notifications for today.")
 
+    # Subject filter
     st.subheader("🧠 Filter Assignments by Subject")
     all_subjects = list({a.get("subject", "Unknown Subject") for a in st.session_state.assignments})
     selected_subject = st.selectbox("Select Subject", ["All"] + sorted(all_subjects))
 
+    # Tabs for different assignment categories
     st.subheader("📝 Assignments")
     tabs = st.tabs(["📅 Upcoming", "❌ Past Due", "✅ Graded", "📨 Submitted (Pending Grading)"])
-
     upcoming_shown = past_due_shown = graded_shown = pending_grading_shown = False
 
     for idx, assignment in enumerate(st.session_state.assignments):
@@ -263,9 +307,9 @@ def student_dashboard():
         submissions = st.session_state.submissions.get(username, [])
         is_submitted = title in submissions
 
-        feedback_blob = f"{FEEDBACKS_FOLDER}/{title}/{username}_feedback.txt"
-        feedback_file = bucket.blob(feedback_blob)
-        is_graded = feedback_file.exists()
+        feedback_blob_path = f"{FEEDBACKS_FOLDER}/{title}/{username}_feedback.txt"
+        feedback_blob = bucket.blob(feedback_blob_path)
+        is_graded = feedback_blob.exists()
 
         # 📅 Upcoming
         if current_date <= deadline and not is_submitted:
@@ -276,30 +320,30 @@ def student_dashboard():
 
                 if uploaded_file:
                     pdf_blob_path = f"uploads/{title.replace(' ', '_')}/{username}.pdf"
-                    pdf_blob = bucket.blob(pdf_blob_path)
-                    pdf_blob.upload_from_file(uploaded_file, content_type="application/pdf")
+                    bucket.blob(pdf_blob_path).upload_from_file(uploaded_file, content_type="application/pdf")
                     st.success(f"✅ File uploaded successfully for {title}!")
 
                     if st.button(f"Extract Text for {title}", key=f"extract_{idx}"):
                         try:
-                            extracted_text_blob = f"extracted_texts/{title.replace(' ', '_')}/{username}_extractedtext.txt"
-                            extracted_path = f"/tmp/{username}_extract.txt"
+                            local_input_pdf = f"/tmp/{username}_{idx}_input.pdf"
+                            local_output_txt = f"/tmp/{username}_{idx}_output.txt"
+                            bucket.blob(pdf_blob_path).download_to_filename(local_input_pdf)
 
-                            pdf_blob.download_to_filename("/tmp/input.pdf")
                             if subject.lower() == "maths":
-                                process_pdf_to_text_and_latex("/tmp/input.pdf", extracted_path)
+                                process_pdf_to_text_and_latex(local_input_pdf, local_output_txt)
                             else:
-                                extract_handwritten_text_from_pdf("/tmp/input.pdf", extracted_path)
+                                extract_handwritten_text_from_pdf(local_input_pdf, local_output_txt)
 
-                            with open(extracted_path, "r") as f:
-                                content = f.read()
+                            with open(local_output_txt, "r", encoding="utf-8") as f:
+                                extracted_text = f.read()
 
-                            bucket.blob(extracted_text_blob).upload_from_string(content)
+                            extracted_blob_path = f"extracted_texts/{title.replace(' ', '_')}/{username}_extractedtext.txt"
+                            bucket.blob(extracted_blob_path).upload_from_string(extracted_text, content_type='text/plain')
 
                             for assign in st.session_state.assignments:
                                 if assign.get("title") == title:
                                     assign.setdefault("submitted_files", []).append(pdf_blob_path)
-                                    assign.setdefault("extracted_texts", {})[username] = extracted_text_blob
+                                    assign.setdefault("extracted_texts", {})[username] = extracted_blob_path
                                     break
 
                             save_data(ASSIGNMENTS_FILE, st.session_state.assignments)
@@ -310,23 +354,27 @@ def student_dashboard():
                         except Exception as e:
                             st.error(f"❌ Error during text extraction: {e}")
 
+        # ❌ Past Due
         elif current_date > deadline and not is_submitted:
             with tabs[1]:
                 past_due_shown = True
                 st.write(f"**{title}** *(Subject: {subject})* — Deadline: {assignment['submission_deadline']}")
                 st.warning("⏳ Submission deadline has passed.")
 
+        # ✅ Graded
         elif is_submitted and is_graded:
             with tabs[2]:
                 graded_shown = True
-                feedback = feedback_file.download_as_text()
+                feedback = feedback_blob.download_as_text()
                 st.success(f"📘 **{title}** *(Subject: {subject})* - Feedback: {feedback}")
 
+        # 📨 Submitted but not graded
         elif is_submitted and not is_graded:
             with tabs[3]:
                 pending_grading_shown = True
                 st.info(f"📄 **{title}** *(Subject: {subject})* - Submitted, waiting for grading.")
 
+    # Fallbacks for empty tabs
     with tabs[0]:
         if not upcoming_shown:
             st.success("🎉 Yay! No pending assignments!")

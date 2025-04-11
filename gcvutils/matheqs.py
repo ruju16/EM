@@ -1,10 +1,18 @@
 import os
 import tempfile
 from PIL import Image
-from PyPDF2 import PdfReader
-import fitz
+import fitz  # PyMuPDF
 from pix2text import Pix2Text
 from pix2tex.cli import LatexOCR
+from google.cloud import storage
+from google.oauth2 import service_account
+import streamlit as st
+
+# Load credentials and bucket
+credentials = service_account.Credentials.from_service_account_info(st.secrets["google_credentials"])
+bucket_name = st.secrets["gcs"]["bucket_name"]
+client = storage.Client(credentials=credentials)
+bucket = client.bucket(bucket_name)
 
 def init_models():
     return Pix2Text(use_fast=True), LatexOCR()
@@ -38,34 +46,43 @@ def extract_text_and_latex(image, p2t_model, latexocr_model):
 
     return full_text.strip()
 
-def save_extracted_text_to_file(text, output_file):
-    with open(output_file, 'a', encoding='utf-8') as f:
-        f.write(text + "\n")
-
 def convert_pdf_to_images(pdf_path):
-    """Use PyMuPDF to convert PDF pages to images (no Poppler needed)."""
+    """Convert PDF pages to PIL images using PyMuPDF."""
     images = []
     doc = fitz.open(pdf_path)
     for page_num in range(len(doc)):
         page = doc.load_page(page_num)
-        pix = page.get_pixmap(dpi=200)  # Reasonable DPI for handwriting
+        pix = page.get_pixmap(dpi=200)
         img_data = pix.tobytes("png")
-        image = Image.open(tempfile.NamedTemporaryFile(delete=False, suffix=".png"))
-        image.fp.write(img_data)
-        image.fp.close()
-        image = Image.open(image.fp.name).convert("RGB")
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
+            tmp.write(img_data)
+            tmp_path = tmp.name
+
+        image = Image.open(tmp_path).convert("RGB")
         images.append(image)
+
     return images
 
-def process_pdf_to_text_and_latex(pdf_path, output_txt_path):
+def process_pdf_to_text_and_latex(pdf_path):
+    """Extract math + text from a PDF and return it as a single string."""
     try:
         images = convert_pdf_to_images(pdf_path)
         p2t, latexocr = init_models()
 
+        full_text = ""
         for img in images:
             result = extract_text_and_latex(img, p2t, latexocr)
-            save_extracted_text_to_file(result, output_txt_path)
+            full_text += result + "\n"
 
-        print(f"✅ Extracted content saved to: {output_txt_path}")
+        return full_text.strip()
     except Exception as e:
         print(f"❌ Error during processing: {e}")
+        return ""
+
+def upload_extracted_text_to_gcs(output_text, title, username):
+    """Uploads extracted text to GCS under extracted_texts/assignment_title/username.txt"""
+    blob_path = f"extracted_texts/{title.replace(' ', '_')}/{username}_extractedtext.txt"
+    blob = bucket.blob(blob_path)
+    blob.upload_from_string(output_text, content_type='text/plain')
+    return blob_path  # You can store this path in your JSON metadata if needed
