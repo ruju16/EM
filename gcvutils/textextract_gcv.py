@@ -19,12 +19,14 @@ def extract_handwritten_text_from_pdf(gcs_pdf_blob_path, assignment_title, usern
     and save the extracted result back to GCS.
     """
 
-    # Step 1: Download PDF from GCS
+    # Step 1: Download PDF from GCS as a stream (simulate file object)
     pdf_blob = bucket.blob(gcs_pdf_blob_path)
-    pdf_bytes = pdf_blob.download_as_bytes()
+    pdf_stream = BytesIO()
+    pdf_blob.download_to_file(pdf_stream)
+    pdf_stream.seek(0)  # Reset stream pointer
 
-    # Step 2: Load PDF into PyMuPDF from bytes
-    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    # Step 2: Load PDF into PyMuPDF from stream
+    doc = fitz.open(stream=pdf_stream.read(), filetype="pdf")
     total_pages = len(doc)
     full_text = ""
 
