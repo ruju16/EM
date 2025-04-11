@@ -1,46 +1,48 @@
 from google.cloud import vision
 from google.oauth2 import service_account
-import io
 import fitz  # PyMuPDF
 import streamlit as st
 from google.cloud import storage
-import tempfile
-import os
-import json
+from io import BytesIO
 
-# Setup GCS and Vision API credentials from secrets
+# Setup credentials and bucket from Streamlit secrets
 creds = service_account.Credentials.from_service_account_info(st.secrets["google_credentials"])
 bucket_name = st.secrets["gcs"]["bucket_name"]
 client = storage.Client(credentials=creds)
 bucket = client.bucket(bucket_name)
-
 vision_client = vision.ImageAnnotatorClient(credentials=creds)
 
-def extract_handwritten_text_from_pdf(pdf_path, assignment_title, username):
+
+def extract_handwritten_text_from_pdf(gcs_pdf_blob_path, assignment_title, username):
     """
-    Extract handwritten text from PDF using GCV and upload result to GCS.
-    Returns the GCS blob path of the extracted text.
+    Extract handwritten text from a PDF stored in GCS using Google Cloud Vision,
+    and save the extracted result back to GCS.
     """
-    doc = fitz.open(pdf_path)
+
+    # Step 1: Download PDF from GCS
+    pdf_blob = bucket.blob(gcs_pdf_blob_path)
+    pdf_bytes = pdf_blob.download_as_bytes()
+
+    # Step 2: Load PDF into PyMuPDF from bytes
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
     total_pages = len(doc)
     full_text = ""
 
     progress_bar = st.progress(0)
 
+    # Step 3: Iterate through pages
     for i, page in enumerate(doc):
-        progress = int((i / total_pages) * 100)
-        progress_bar.progress(progress)
+        progress_bar.progress(int((i / total_pages) * 100))
 
         pix = page.get_pixmap(dpi=300)
-        image_byte_arr = pix.tobytes("png")
+        img_bytes = pix.tobytes("png")
+        gcv_image = vision.Image(content=img_bytes)
 
-        gcv_image = vision.Image(content=image_byte_arr)
         response = vision_client.document_text_detection(image=gcv_image)
         annotations = response.full_text_annotation
 
         if annotations and annotations.text.strip():
-            text = annotations.text.strip()
-            full_text += text + "\n\n"
+            full_text += annotations.text.strip() + "\n\n"
             print(f"✅ Extracted page {i+1}")
         else:
             print(f"⚠️ No text on page {i+1}")
@@ -50,7 +52,7 @@ def extract_handwritten_text_from_pdf(pdf_path, assignment_title, username):
 
     progress_bar.progress(100)
 
-    # Upload full text to GCS
+    # Step 4: Upload extracted text back to GCS
     blob_path = f"extracted_texts/{assignment_title.replace(' ', '_')}/{username}_extractedtext.txt"
     blob = bucket.blob(blob_path)
     blob.upload_from_string(full_text, content_type='text/plain')

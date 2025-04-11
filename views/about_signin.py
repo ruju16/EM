@@ -131,9 +131,8 @@ def teacher_dashboard():
                     if assignment["graded_students"].get(username, {}).get("finalized", False):
                         continue
 
-                    blob_path = extracted_text_path.replace("\\", "/").replace("./", "")
                     try:
-                        content = bucket.blob(blob_path).download_as_text()
+                        content = bucket.blob(extracted_text_path).download_as_text()
                     except Exception as e:
                         st.warning(f"⚠️ Could not load submission for {username}: {e}")
                         continue
@@ -269,10 +268,11 @@ def student_dashboard():
         if deadline == current_date and not submission_exists:
             today_notifications.append(f"❗ You missed the deadline for '{title}' today!")
 
-        feedback_blob_path = f"{FEEDBACKS_FOLDER}/{title}/{username}_feedback.txt"
-        feedback_blob = bucket.blob(feedback_blob_path)
-        if feedback_blob.exists():
-            if feedback_blob.updated.date() == current_date:
+        feedback_blob = f"{FEEDBACKS_FOLDER}/{title}/{username}_feedback.txt"
+        feedback_file = bucket.blob(feedback_blob)
+        if feedback_file.exists():
+            mod_time = feedback_file.updated.date()
+            if mod_time == current_date:
                 today_notifications.append(f"✅ Your assignment '{title}' was graded today!")
 
     if today_notifications:
@@ -282,14 +282,13 @@ def student_dashboard():
     else:
         st.write("📭 No new notifications for today.")
 
-    # Subject filter
     st.subheader("🧠 Filter Assignments by Subject")
     all_subjects = list({a.get("subject", "Unknown Subject") for a in st.session_state.assignments})
     selected_subject = st.selectbox("Select Subject", ["All"] + sorted(all_subjects))
 
-    # Tabs for different assignment categories
     st.subheader("📝 Assignments")
     tabs = st.tabs(["📅 Upcoming", "❌ Past Due", "✅ Graded", "📨 Submitted (Pending Grading)"])
+
     upcoming_shown = past_due_shown = graded_shown = pending_grading_shown = False
 
     for idx, assignment in enumerate(st.session_state.assignments):
@@ -307,9 +306,9 @@ def student_dashboard():
         submissions = st.session_state.submissions.get(username, [])
         is_submitted = title in submissions
 
-        feedback_blob_path = f"{FEEDBACKS_FOLDER}/{title}/{username}_feedback.txt"
-        feedback_blob = bucket.blob(feedback_blob_path)
-        is_graded = feedback_blob.exists()
+        feedback_blob = f"{FEEDBACKS_FOLDER}/{title}/{username}_feedback.txt"
+        feedback_file = bucket.blob(feedback_blob)
+        is_graded = feedback_file.exists()
 
         # 📅 Upcoming
         if current_date <= deadline and not is_submitted:
@@ -319,27 +318,24 @@ def student_dashboard():
                 uploaded_file = st.file_uploader(f"📄 Upload PDF for {title}", type=["pdf"], key=f"upload_{idx}")
 
                 if uploaded_file:
+                    # Step 1: Upload PDF to GCS
                     pdf_blob_path = f"uploads/{title.replace(' ', '_')}/{username}.pdf"
-                    bucket.blob(pdf_blob_path).upload_from_file(uploaded_file, content_type="application/pdf")
+                    pdf_blob = bucket.blob(pdf_blob_path)
+                    pdf_blob.upload_from_file(uploaded_file, content_type="application/pdf")
                     st.success(f"✅ File uploaded successfully for {title}!")
 
                     if st.button(f"Extract Text for {title}", key=f"extract_{idx}"):
                         try:
-                            local_input_pdf = f"/tmp/{username}_{idx}_input.pdf"
-                            local_output_txt = f"/tmp/{username}_{idx}_output.txt"
-                            bucket.blob(pdf_blob_path).download_to_filename(local_input_pdf)
-
+                            # Step 2: Process from GCS and return blob path
                             if subject.lower() == "maths":
-                                process_pdf_to_text_and_latex(local_input_pdf, local_output_txt)
+                                from gcvutils.matheqs import process_pdf_to_text_and_latex, upload_extracted_text_to_gcs
+                                extracted_text = process_pdf_to_text_and_latex(pdf_blob_path)
+                                extracted_blob_path = upload_extracted_text_to_gcs(extracted_text, title, username)
                             else:
-                                extract_handwritten_text_from_pdf(local_input_pdf, local_output_txt)
+                                from gcvutils.textextract_gcv import extract_handwritten_text_from_pdf
+                                extracted_blob_path = extract_handwritten_text_from_pdf(pdf_blob_path, title, username)
 
-                            with open(local_output_txt, "r", encoding="utf-8") as f:
-                                extracted_text = f.read()
-
-                            extracted_blob_path = f"extracted_texts/{title.replace(' ', '_')}/{username}_extractedtext.txt"
-                            bucket.blob(extracted_blob_path).upload_from_string(extracted_text, content_type='text/plain')
-
+                            # Step 3: Update assignment metadata
                             for assign in st.session_state.assignments:
                                 if assign.get("title") == title:
                                     assign.setdefault("submitted_files", []).append(pdf_blob_path)
@@ -354,27 +350,23 @@ def student_dashboard():
                         except Exception as e:
                             st.error(f"❌ Error during text extraction: {e}")
 
-        # ❌ Past Due
         elif current_date > deadline and not is_submitted:
             with tabs[1]:
                 past_due_shown = True
                 st.write(f"**{title}** *(Subject: {subject})* — Deadline: {assignment['submission_deadline']}")
                 st.warning("⏳ Submission deadline has passed.")
 
-        # ✅ Graded
         elif is_submitted and is_graded:
             with tabs[2]:
                 graded_shown = True
-                feedback = feedback_blob.download_as_text()
+                feedback = feedback_file.download_as_text()
                 st.success(f"📘 **{title}** *(Subject: {subject})* - Feedback: {feedback}")
 
-        # 📨 Submitted but not graded
         elif is_submitted and not is_graded:
             with tabs[3]:
                 pending_grading_shown = True
                 st.info(f"📄 **{title}** *(Subject: {subject})* - Submitted, waiting for grading.")
 
-    # Fallbacks for empty tabs
     with tabs[0]:
         if not upcoming_shown:
             st.success("🎉 Yay! No pending assignments!")
