@@ -3,9 +3,6 @@ import json
 import os
 import time as TIME
 from datetime import datetime
-
-import sys
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from views.LM import LLM
 from gcvutils.textextract_gcv import extract_handwritten_text_from_pdf
 from datetime import datetime, time, timedelta
