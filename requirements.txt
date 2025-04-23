@@ -1,4 +1,5 @@
 --extra-index-url https://download.pytorch.org/whl/cpu
+
 opencv-contrib-python-headless==4.8.1.78
 pix2text==0.3
 streamlit
