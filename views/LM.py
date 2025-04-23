@@ -1,5 +1,3 @@
-import streamlit as st
-
 from groq import Groq
 
 GROQ_API_KEY = "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"  # Replace with your actual API key
