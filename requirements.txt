@@ -1,7 +1,6 @@
 --extra-index-url https://download.pytorch.org/whl/cpu
 
-opencv-contrib-python-headless==4.8.1.78
-pix2text==0.3
+opencv-python-headless==4.8.1.78
 streamlit
 pillow
 poppler-utils
@@ -14,8 +13,8 @@ numpy
 pandas
 matplotlib
 tqdm
-torch==2.1.0+cpu
-torchvision==0.15.0+cpu
+torch
+torchvision
 scikit-learn
 transformers
 sentencepiece
@@ -25,3 +24,5 @@ streamlit-option-menu
 PyMuPDF
 PyPDF2
 pdf2image
+pix2tex
+pix2text==0.3
