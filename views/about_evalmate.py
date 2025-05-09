@@ -73,9 +73,10 @@ st.markdown("---")
 st.subheader("🚀 Key Features")
 st.markdown(
     """
-    - ✅ **Cutting-Edge Accuracy** powered by advanced LSTM and AI models for precise grading.
-    - 🔍 **Robust Plagiarism Detection** ensures the authenticity of student submissions.
-    - 🤖 **Built by AI & Data Science Experts** to streamline grading and enhance educational impact.
+    ✅ Instant handwriting recognition for fast and accurate evaluation.
+    📊 Insightful dashboards to manage assignments.
+    🧠 Context-aware answer evaluation that understands meaning, not just keywords.
+    ✏️ Teacher-editable feedback & scores tailored to each student for final review and customization.
     """
 )
 
