@@ -73,9 +73,9 @@ st.markdown("---")
 st.subheader("🚀 Key Features")
 st.markdown(
     """
-    ✅ Instant handwriting recognition for fast and accurate evaluation.
-    📊 Insightful dashboards to manage assignments.
-    🧠 Context-aware answer evaluation that understands meaning, not just keywords.
+    ✅ Instant handwriting recognition for fast and accurate evaluation.\n
+    📊 Insightful dashboards to manage assignments.\n
+    🧠 Context-aware answer evaluation that understands meaning, not just keywords.\n
     ✏️ Teacher-editable feedback & scores tailored to each student for final review and customization.
     """
 )
