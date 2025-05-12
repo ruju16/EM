@@ -7,3 +7,4 @@ textColor="#ffffff"
 [server]
 headless = true
 enableCORS = false
+runOnSave = false
